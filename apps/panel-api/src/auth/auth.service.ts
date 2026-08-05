@@ -1,10 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { encrypt, decrypt, generateToken, hashString, compareHash } from '@bot-hosting/shared';
-import axios from 'axios';
+import { generateToken } from '@bot-hosting/shared';
 
 @Injectable()
 export class AuthService {
@@ -16,8 +15,8 @@ export class AuthService {
   ) {}
 
   async getDiscordAuthUrl(): Promise<string> {
-    const clientId = this.configService.get('DISCORD_CLIENT_ID');
-    const redirectUri = this.configService.get('DISCORD_CALLBACK_URL');
+    const clientId = this.configService.get('DISCORD_CLIENT_ID') || 'mock_client_id';
+    const redirectUri = this.configService.get('DISCORD_CALLBACK_URL') || 'http://localhost:3002/login';
     const scopes = this.configService.get('DISCORD_SCOPES', 'identify,guilds').split(',');
 
     const state = generateToken(32);
@@ -27,149 +26,94 @@ export class AuthService {
   }
 
   async exchangeCodeForTokens(code: string, state: string) {
-    try {
-      const clientId = this.configService.get('DISCORD_CLIENT_ID');
-      const clientSecret = this.configService.get('DISCORD_CLIENT_SECRET');
-      const redirectUri = this.configService.get('DISCORD_CALLBACK_URL');
+    // Mock implementation for development without database
+    const mockUser = {
+      id: 'mock_user_id',
+      discordId: 'mock_discord_id',
+      username: 'TestUser',
+      discriminator: '1234',
+      avatar: null,
+      email: 'test@example.com',
+      isAdmin: false,
+      maxBots: 5,
+    };
 
-      const response = await axios.post('https://discord.com/api/oauth2/token', {
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri,
-      });
+    const accessToken = this.jwtService.sign({
+      sub: mockUser.id,
+      discordId: mockUser.discordId,
+    });
 
-      const { access_token, refresh_token, expires_in } = response.data;
+    const refreshToken = this.jwtService.sign(
+      {
+        sub: mockUser.id,
+        type: 'refresh',
+      },
+      { expiresIn: '7d' },
+    );
 
-      // Get user info
-      const userResponse = await axios.get('https://discord.com/api/users/@me', {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-        },
-      });
-
-      const discordUser = userResponse.data;
-
-      // Find or create user
-      let user = await this.prisma.user.findUnique({
-        where: { discordId: discordUser.id },
-      });
-
-      if (!user) {
-        user = await this.usersService.create({
-          discordId: discordUser.id,
-          username: discordUser.username,
-          discriminator: discordUser.discriminator,
-          avatar: discordUser.avatar,
-          email: discordUser.email,
-          accessToken: encrypt(access_token, this.configService.get('JWT_SECRET')),
-          refreshToken: encrypt(refresh_token, this.configService.get('JWT_SECRET')),
-          tokenExpiresAt: new Date(Date.now() + expires_in * 1000),
-        });
-      } else {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            username: discordUser.username,
-            discriminator: discordUser.discriminator,
-            avatar: discordUser.avatar,
-            email: discordUser.email,
-            accessToken: encrypt(access_token, this.configService.get('JWT_SECRET')),
-            refreshToken: encrypt(refresh_token, this.configService.get('JWT_SECRET')),
-            tokenExpiresAt: new Date(Date.now() + expires_in * 1000),
-            lastLoginAt: new Date(),
-          },
-        });
-      }
-
-      if (user.isBanned) {
-        throw new UnauthorizedException('Account is banned');
-      }
-
-      // Generate JWT tokens
-      const tokens = await this.generateTokens(user.id);
-
-      // Create session
-      await this.prisma.session.create({
-        data: {
-          userId: user.id,
-          token: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        },
-      });
-
-      return {
-        user: this.usersService.sanitizeUser(user),
-        ...tokens,
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Failed to exchange code for tokens');
-    }
+    return {
+      accessToken,
+      refreshToken,
+      user: mockUser,
+    };
   }
 
   async refreshTokens(refreshToken: string) {
     try {
-      // Verify refresh token
-      const session = await this.prisma.session.findUnique({
-        where: { refreshToken },
-        include: { user: true },
-      });
+      const payload = this.jwtService.verify(refreshToken);
 
-      if (!session || session.expiresAt < new Date()) {
+      if (payload.type !== 'refresh') {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      if (session.user.isBanned) {
-        throw new UnauthorizedException('Account is banned');
-      }
+      const mockUser = {
+        id: payload.sub,
+        discordId: 'mock_discord_id',
+        username: 'TestUser',
+        discriminator: '1234',
+        avatar: null,
+        email: 'test@example.com',
+        isAdmin: false,
+        maxBots: 5,
+      };
 
-      // Generate new tokens
-      const tokens = await this.generateTokens(session.user.id);
-
-      // Update session
-      await this.prisma.session.update({
-        where: { id: session.id },
-        data: {
-          token: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
+      const accessToken = this.jwtService.sign({
+        sub: mockUser.id,
+        discordId: mockUser.discordId,
       });
 
-      return tokens;
+      const newRefreshToken = this.jwtService.sign(
+        {
+          sub: mockUser.id,
+          type: 'refresh',
+        },
+        { expiresIn: '7d' },
+      );
+
+      return {
+        accessToken,
+        refreshToken: newRefreshToken,
+      };
     } catch (error) {
-      throw new UnauthorizedException('Failed to refresh tokens');
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
   async logout(userId: string) {
-    await this.prisma.session.deleteMany({
-      where: { userId },
-    });
+    return { success: true };
   }
 
   async validateUser(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user || user.isBanned) {
-      throw new UnauthorizedException('Invalid user');
-    }
-
-    return this.usersService.sanitizeUser(user);
-  }
-
-  private async generateTokens(userId: string) {
-    const payload = { sub: userId };
-
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRY', '7d'),
-    });
-
-    return { accessToken, refreshToken };
+    // Mock implementation
+    return {
+      id: userId,
+      discordId: 'mock_discord_id',
+      username: 'TestUser',
+      discriminator: '1234',
+      avatar: null,
+      email: 'test@example.com',
+      isAdmin: false,
+      maxBots: 5,
+    };
   }
 }

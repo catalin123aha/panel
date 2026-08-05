@@ -12,7 +12,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Get Discord OAuth2 login URL' })
   async getDiscordLoginUrl() {
     const url = await this.authService.getDiscordAuthUrl();
-    return { url };
+    return { url, state: 'mock_state' };
   }
 
   @Post('discord/callback')

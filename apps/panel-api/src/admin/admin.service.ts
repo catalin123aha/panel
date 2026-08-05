@@ -1,28 +1,20 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { BotsService } from '../bots/bots.service';
-import { ActivityLogsService } from '../activity-logs/activity-logs.service';
-import { StatisticsService } from '../statistics/statistics.service';
 
 @Injectable()
 export class AdminService {
   constructor(
+    private prisma: PrismaService,
     private usersService: UsersService,
-    private botsService: BotsService,
-    private activityLogsService: ActivityLogsService,
-    private statisticsService: StatisticsService,
   ) {}
 
-  async listUsers(page: number = 1, limit: number = 10) {
-    return this.usersService.listUsers(page, limit);
+  async listUsers(options?: { skip?: number; take?: number }) {
+    return this.usersService.findAll(options);
   }
 
   async getUser(id: string) {
-    const user = await this.usersService.findById(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    return this.usersService.sanitizeUser(user);
+    return this.usersService.findById(id);
   }
 
   async banUser(id: string) {
@@ -33,21 +25,35 @@ export class AdminService {
     return this.usersService.unbanUser(id);
   }
 
-  async listBots(page: number = 1, limit: number = 10) {
-    // TODO: Implement pagination
-    return [];
+  async listBots() {
+    return this.prisma.bot.findMany();
   }
 
   async deleteBot(id: string) {
-    // TODO: Implement bot deletion
-    return { message: 'Bot deleted' };
+    await this.prisma.bot.delete({
+      where: { id },
+    });
   }
 
-  async getStats() {
-    return this.statisticsService.getPlatformStats();
+  async getSystemStats() {
+    const [totalUsers, totalBots, runningBots] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.bot.count(),
+      this.prisma.bot.count({ where: { status: 'RUNNING' } }),
+    ]);
+
+    return {
+      totalUsers,
+      totalBots,
+      runningBots,
+    };
   }
 
-  async getActivityLogs(page: number = 1, limit: number = 10) {
-    return this.activityLogsService.listAll(page, limit);
+  async getActivityLogs(options?: { skip?: number; take?: number }) {
+    return this.prisma.activityLog.findMany({
+      skip: options?.skip,
+      take: options?.take,
+      orderBy: { timestamp: 'desc' },
+    });
   }
 }

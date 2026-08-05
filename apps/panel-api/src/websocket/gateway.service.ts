@@ -5,10 +5,19 @@ import { PrismaService } from '../prisma/prisma.service';
 export class GatewayService {
   constructor(private prisma: PrismaService) {}
 
+  async getAllBots() {
+    return this.prisma.bot.findMany();
+  }
+
+  async getBotById(id: string) {
+    return this.prisma.bot.findFirst({
+      where: { id },
+    });
+  }
+
   async getUserBots(userId: string) {
     return this.prisma.bot.findMany({
       where: { userId },
-      select: { id: true },
     });
   }
 

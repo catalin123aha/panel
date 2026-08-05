@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TemplatesService } from './templates.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Templates')
 @Controller('templates')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class TemplatesController {
   constructor(private templatesService: TemplatesService) {}
 
@@ -21,35 +23,20 @@ export class TemplatesController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create template (admin)' })
+  @ApiOperation({ summary: 'Create template' })
   async createTemplate(@Request() req, @Body() data: any) {
-    if (!req.user.isAdmin) {
-      throw new Error('Admin access required');
-    }
     return this.templatesService.create(req.user.userId, data);
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update template (admin)' })
-  async updateTemplate(@Param('id') id: string, @Request() req, @Body() data: any) {
-    if (!req.user.isAdmin) {
-      throw new Error('Admin access required');
-    }
+  @ApiOperation({ summary: 'Update template' })
+  async updateTemplate(@Param('id') id: string, @Body() data: any) {
     return this.templatesService.update(id, data);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete template (admin)' })
-  async deleteTemplate(@Param('id') id: string, @Request() req) {
-    if (!req.user.isAdmin) {
-      throw new Error('Admin access required');
-    }
+  @ApiOperation({ summary: 'Delete template' })
+  async deleteTemplate(@Param('id') id: string) {
     return this.templatesService.remove(id);
   }
 }

@@ -19,7 +19,7 @@ interface AuthContextType {
   accessToken: string | null;
   refreshToken: string | null;
   isLoading: boolean;
-  login: (code: string, state: string) => Promise<void>;
+  login: (code: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -63,9 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (code: string, state: string) => {
+  const login = async (code: string) => {
     try {
-      const response = await sdk.exchangeCodeForTokens(code, state);
+      const response = await sdk.exchangeCodeForTokens(code);
       
       setAccessToken(response.accessToken);
       setRefreshToken(response.refreshToken);

@@ -5,44 +5,38 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('GitHub')
 @Controller('github')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class GitHubController {
   constructor(private gitHubService: GitHubService) {}
 
   @Post('connect')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Connect GitHub repository' })
   async connectRepo(@Request() req, @Body() data: any) {
     return this.gitHubService.connect(req.user.userId, data);
   }
 
   @Get('repos')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'List GitHub repositories' })
+  @ApiOperation({ summary: 'List user repositories' })
   async listRepos(@Request() req) {
-    return this.gitHubService.list(req.user.userId);
+    return this.gitHubService.getUserRepos(req.user.userId);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Disconnect GitHub repository' })
-  async disconnectRepo(@Param('id') id: string, @Request() req) {
-    return this.gitHubService.disconnect(id, req.user.userId);
+  @ApiOperation({ summary: 'Disconnect repository' })
+  async disconnectRepo(@Request() req, @Param('id') id: string) {
+    return this.gitHubService.disconnect(req.user.userId, id);
   }
 
   @Post(':id/pull')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Pull latest changes' })
-  async pullRepo(@Param('id') id: string, @Request() req) {
-    return this.gitHubService.pull(id, req.user.userId);
+  @ApiOperation({ summary: 'Pull from repository' })
+  async pullRepo(@Request() req, @Param('id') id: string) {
+    return this.gitHubService.pull(req.user.userId, id);
   }
 
   @Post(':id/webhook')
   @ApiOperation({ summary: 'Handle GitHub webhook' })
   async handleWebhook(@Param('id') id: string, @Body() payload: any) {
-    return this.gitHubService.handleWebhook(payload);
+    return this.gitHubService.handleWebhook(id, payload);
   }
 }

@@ -10,20 +10,23 @@ export class GitHubService {
       data: {
         userId,
         ...data,
-        webhookSecret: this.generateWebhookSecret(),
       },
     });
   }
 
-  async list(userId: string) {
+  async getUserRepos(userId: string) {
     return this.prisma.gitHubRepo.findMany({
       where: { userId },
     });
   }
 
-  async disconnect(id: string, userId: string) {
+  async list(userId: string) {
+    return this.getUserRepos(userId);
+  }
+
+  async disconnect(userId: string, repoId: string) {
     const repo = await this.prisma.gitHubRepo.findFirst({
-      where: { id, userId },
+      where: { id: repoId, userId },
     });
 
     if (!repo) {
@@ -31,34 +34,33 @@ export class GitHubService {
     }
 
     await this.prisma.gitHubRepo.delete({
-      where: { id },
+      where: { id: repoId },
     });
-
-    return { message: 'Repository disconnected' };
   }
 
-  async pull(id: string, userId: string) {
+  async pull(userId: string, repoId: string) {
     const repo = await this.prisma.gitHubRepo.findFirst({
-      where: { id, userId },
+      where: { id: repoId, userId },
     });
 
     if (!repo) {
       throw new Error('Repository not found');
     }
 
-    // TODO: Queue pull job
-
-    return { message: 'Pull initiated' };
+    // In a real implementation, this would trigger a pull from GitHub
+    return { success: true };
   }
 
-  async handleWebhook(payload: any) {
-    // TODO: Validate webhook signature
-    // TODO: Queue deployment job
+  async handleWebhook(repoId: string, payload?: any) {
+    const repo = await this.prisma.gitHubRepo.findFirst({
+      where: { id: repoId },
+    });
 
-    return { message: 'Webhook received' };
-  }
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
 
-  private generateWebhookSecret(): string {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    // In a real implementation, this would trigger a deployment
+    return { success: true };
   }
 }

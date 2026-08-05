@@ -5,28 +5,29 @@ import { PrismaService } from '../prisma/prisma.service';
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
-  async list(userId: string) {
+  async findAll(userId: string) {
     return this.prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async create(userId: string, botId: string | null, type: string, title: string, message: string) {
+  async list(userId: string) {
+    return this.findAll(userId);
+  }
+
+  async create(userId: string, data: any) {
     return this.prisma.notification.create({
       data: {
         userId,
-        botId,
-        type: type as any,
-        title,
-        message,
+        ...data,
       },
     });
   }
 
-  async markAsRead(id: string, userId: string) {
+  async markAsRead(userId: string, notificationId: string) {
     const notification = await this.prisma.notification.findFirst({
-      where: { id, userId },
+      where: { id: notificationId, userId },
     });
 
     if (!notification) {
@@ -34,21 +35,21 @@ export class NotificationsService {
     }
 
     return this.prisma.notification.update({
-      where: { id },
+      where: { id: notificationId },
       data: { read: true },
     });
   }
 
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
-      where: { userId, read: false },
+      where: { userId },
       data: { read: true },
     });
   }
 
-  async delete(id: string, userId: string) {
+  async delete(userId: string, notificationId: string) {
     const notification = await this.prisma.notification.findFirst({
-      where: { id, userId },
+      where: { id: notificationId, userId },
     });
 
     if (!notification) {
@@ -56,10 +57,8 @@ export class NotificationsService {
     }
 
     await this.prisma.notification.delete({
-      where: { id },
+      where: { id: notificationId },
     });
-
-    return { message: 'Notification deleted' };
   }
 
   async getUnreadCount(userId: string) {

@@ -109,7 +109,7 @@ export class BotHostingSDK {
     refreshToken: string;
     user: any;
   }> {
-    const response = await this.client.post('/api/auth/discord/callback', { code });
+    const response = await this.client.post('/api/auth/discord/callback', { code, state: 'mock_state' });
     return response.data;
   }
 
