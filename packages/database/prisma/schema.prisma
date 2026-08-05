@@ -1,0 +1,336 @@
+// ============================================
+// DATASOURCE
+// ============================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// GENERATOR
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id                String    @id @default(uuid())
+  discordId         String    @unique
+  username          String
+  discriminator     String
+  avatar            String?
+  email             String?
+  accessToken       String
+  refreshToken      String
+  tokenExpiresAt    DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+  isAdmin           Boolean   @default(false)
+  isBanned          Boolean   @default(false)
+  maxBots           Int       @default(5)
+
+  // Relations
+  bots              Bot[]
+  githubRepos       GitHubRepo[]
+  activityLogs      ActivityLog[]
+  createdBackups    Backup[]  @relation("BackupCreator")
+  notifications     Notification[]
+  apiKeys           ApiKey[]
+  sessions          Session[]
+  createdTemplates  Template[] @relation("TemplateCreator")
+
+  @@index([discordId])
+  @@index([isBanned])
+}
+
+model Bot {
+  id                    String    @id @default(uuid())
+  userId                String
+  name                  String
+  description           String?
+  status                BotStatus @default(CREATING)
+  runtime               BotRuntime
+  runtimeVersion        String
+  library               BotLibrary
+  templateId            String?
+  containerId           String?   @unique
+  containerName         String?
+  port                  Int?
+  envData               Json      @default("{}")
+  githubRepoId          String?   @unique
+  autoDeploy            Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  lastStartedAt         DateTime?
+  lastStoppedAt         DateTime?
+  uptimeSeconds         BigInt    @default(0)
+  restartCount          Int       @default(0)
+  cpuLimit              Float     @default(1.0)
+  memoryLimit           Int       @default(512)
+  diskLimit             Int       @default(10240)
+
+  // Relations
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template              Template?      @relation(fields: [templateId], references: [id])
+  githubRepo            GitHubRepo?    @relation(fields: [githubRepoId], references: [id])
+  deployments          Deployment[]
+  backups               Backup[]
+  activityLogs          ActivityLog[]
+  environmentVariables  EnvironmentVariable[]
+  notifications         Notification[]
+  statistics            Statistics[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([runtime])
+}
+
+model Template {
+  id                    String    @id @default(uuid())
+  name                  String
+  description           String
+  runtime               BotRuntime
+  library               BotLibrary
+  version               String
+  dockerImage           String
+  buildCommand          String
+  startCommand          String
+  files                 Json
+  environmentVariables  Json
+  isPublic              Boolean   @default(true)
+  createdBy             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  downloadCount         Int       @default(0)
+
+  // Relations
+  bots                  Bot[]
+  creator               User?     @relation("TemplateCreator", fields: [createdBy], references: [id])
+
+  @@index([runtime])
+  @@index([library])
+  @@index([isPublic])
+}
+
+model GitHubRepo {
+  id              String    @id @default(uuid())
+  userId          String
+  botId           String?   @unique
+  githubRepoId    String
+  owner           String
+  name            String
+  branch          String    @default("main")
+  webhookSecret   String
+  lastCommitSha   String?
+  lastDeployedAt  DateTime?
+  connectedAt     DateTime  @default(now())
+  autoDeploy      Boolean   @default(false)
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot             Bot?
+
+  @@index([userId])
+  @@index([botId])
+}
+
+model Deployment {
+  id            String          @id @default(uuid())
+  botId         String
+  type          DeploymentType
+  status        DeploymentStatus @default(PENDING)
+  commitSha     String?
+  commitMessage String?
+  startedAt     DateTime        @default(now())
+  completedAt   DateTime?
+  errorMessage  String?
+  buildLogs     String          @default("")
+
+  // Relations
+  bot           Bot             @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId])
+  @@index([status])
+}
+
+model Backup {
+  id          String   @id @default(uuid())
+  botId       String
+  name        String
+  sizeBytes   BigInt
+  storagePath String
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  // Relations
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  creator     User     @relation("BackupCreator", fields: [createdBy], references: [id])
+
+  @@index([botId])
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  botId     String?
+  action    String
+  details   Json     @default("{}")
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot       Bot?     @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([botId])
+  @@index([createdAt])
+}
+
+model EnvironmentVariable {
+  id        String   @id @default(uuid())
+  botId     String
+  key       String
+  value     String
+  isSecret  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, key])
+  @@index([botId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  botId     String?
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot       Bot?             @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([botId])
+  @@index([read])
+}
+
+model Statistics {
+  id           String   @id @default(uuid())
+  botId        String
+  timestamp    DateTime @default(now())
+  cpuPercent   Float
+  memoryMb     Int
+  diskMb       Int
+  networkRxMb  Float
+  networkTxMb  Float
+
+  // Relations
+  bot          Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId])
+  @@index([timestamp])
+}
+
+model ApiKey {
+  id           String    @id @default(uuid())
+  userId       String
+  name         String
+  keyHash      String    @unique
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  token        String    @unique
+  refreshToken String    @unique
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  ipAddress    String?
+  userAgent    String?
+
+  // Relations
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum BotStatus {
+  CREATING
+  RUNNING
+  STOPPED
+  CRASHED
+  RESTARTING
+}
+
+enum BotRuntime {
+  NODEJS
+  PYTHON
+  JAVA
+  GO
+  RUST
+}
+
+enum BotLibrary {
+  DISCORDJS
+  DISCORDPY
+  PYCORD
+  NEXTCORD
+  DISNAKE
+  JDA
+  SERENITY
+  BLANK
+}
+
+enum DeploymentType {
+  INITIAL
+  GITHUB
+  ZIP
+  MANUAL
+  REBUILD
+}
+
+enum DeploymentStatus {
+  PENDING
+  BUILDING
+  DEPLOYING
+  SUCCESS
+  FAILED
+}
+
+enum NotificationType {
+  BOT_STARTED
+  BOT_STOPPED
+  BOT_CRASHED
+  BACKUP_COMPLETED
+  DEPLOYMENT_COMPLETED
+  DEPLOYMENT_FAILED
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@bot-hosting/database",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "generate": "npx prisma generate",
+    "migrate": "npx prisma migrate dev",
+    "migrate:deploy": "npx prisma migrate deploy",
+    "migrate:reset": "npx prisma migrate reset",
+    "studio": "npx prisma studio",
+    "seed": "npx ts-node prisma/seed.ts",
+    "build": "echo 'No build step for database package'",
+    "clean": "echo 'No build step for database package'"
+  },
+  "dependencies": {
+    "@bot-hosting/types": "workspace:*",
+    "@prisma/client": "^5.9.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.9.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
